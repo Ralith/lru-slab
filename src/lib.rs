@@ -1,6 +1,11 @@
 //! Pre-allocated storage with constant-time LRU tracking
 
 #![warn(missing_docs)]
+#![no_std]
+
+extern crate alloc;
+
+use alloc::boxed::Box;
 
 /// A random-access table that maintains an LRU list in constant time
 #[derive(Clone)]
@@ -277,6 +282,8 @@ impl<T> ExactSizeIterator for Iter<'_, T> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::String;
+
     use super::*;
 
     #[test]
