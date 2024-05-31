@@ -170,7 +170,7 @@ impl<T> LruSlab<T> {
     fn freshen(&mut self, slot: u32) {
         if self.slots[slot as usize].prev == NONE {
             // This is already the freshest slot, so we don't need to do anything
-            debug_assert_eq!(self.head, slot, "corrupt lru list");
+            debug_assert_eq!(self.head, slot, "corrupt LRU list");
             return;
         }
 
