@@ -30,7 +30,7 @@ impl<T> LruSlab<T> {
 
     /// Create an [`LruSlab`] that can store at least `capacity` elements without reallocating
     pub fn with_capacity(capacity: u32) -> Self {
-        assert!(capacity != u32::max_value(), "capacity too large");
+        assert!(capacity != u32::MAX, "capacity too large");
         Self {
             slots: (0..capacity)
                 .map(|n| Slot {
