@@ -138,11 +138,10 @@ impl<T> LruSlab<T> {
 
     /// Walk the container from most to least recently used
     pub fn iter(&self) -> Iter<'_, T> {
+        let state = IterState::new(self);
         Iter {
             slots: &self.slots[..],
-            head: self.head,
-            tail: self.tail,
-            len: self.len,
+            state,
         }
     }
 
@@ -220,45 +219,75 @@ const NONE: u32 = u32::MAX;
 /// Iterator over elements of an [`LruSlab`], from most to least recently used
 pub struct Iter<'a, T> {
     slots: &'a [Slot<T>],
-    head: u32,
-    tail: u32,
-    len: u32,
+    state: IterState,
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = (u32, &'a T);
     fn next(&mut self) -> Option<(u32, &'a T)> {
-        if self.len == 0 {
-            return None;
-        }
-        let idx = self.head as usize;
-        let result = self.slots[idx].value.as_ref().expect("corrupt LRU list");
-        self.head = self.slots[idx].next;
-        self.len -= 1;
-        Some((idx as u32, result))
+        let idx = self.state.next(|i| self.slots[i as usize].next)?;
+        let result = self.slots[idx as usize]
+            .value
+            .as_ref()
+            .expect("corrupt LRU list");
+        Some((idx, result))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.len as usize, Some(self.len as usize))
+        (self.state.len as usize, Some(self.state.len as usize))
     }
 }
 
 impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
     fn next_back(&mut self) -> Option<(u32, &'a T)> {
-        if self.len == 0 {
-            return None;
-        }
-        let idx = self.tail as usize;
-        let result = self.slots[idx].value.as_ref().expect("corrupt LRU list");
-        self.tail = self.slots[idx].prev;
-        self.len -= 1;
-        Some((idx as u32, result))
+        let idx = self.state.next_back(|i| self.slots[i as usize].prev)?;
+        let result = self.slots[idx as usize]
+            .value
+            .as_ref()
+            .expect("corrupt LRU list");
+        Some((idx, result))
     }
 }
 
 impl<T> ExactSizeIterator for Iter<'_, T> {
     fn len(&self) -> usize {
-        self.len as usize
+        self.state.len as usize
+    }
+}
+
+struct IterState {
+    head: u32,
+    tail: u32,
+    len: u32,
+}
+
+impl IterState {
+    fn new<T>(slab: &LruSlab<T>) -> Self {
+        Self {
+            head: slab.head,
+            tail: slab.tail,
+            len: slab.len,
+        }
+    }
+
+    fn next(&mut self, get_next: impl Fn(u32) -> u32) -> Option<u32> {
+        if self.len == 0 {
+            return None;
+        }
+        let idx = self.head;
+        self.head = get_next(idx);
+        self.len -= 1;
+        Some(idx)
+    }
+
+    fn next_back(&mut self, get_prev: impl Fn(u32) -> u32) -> Option<u32> {
+        if self.len == 0 {
+            return None;
+        }
+        let idx = self.tail;
+        self.tail = get_prev(idx);
+        self.len -= 1;
+        Some(idx)
     }
 }
 
