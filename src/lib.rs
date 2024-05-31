@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use core::{iter::FusedIterator, marker::PhantomData, ptr::addr_of_mut};
+use core::{fmt, iter::FusedIterator, marker::PhantomData, ptr::addr_of_mut};
 
 /// A random-access table that maintains an LRU list in constant time
 #[derive(Clone)]
@@ -247,6 +247,16 @@ impl<'a, T> IntoIterator for &'a mut LruSlab<T> {
     }
 }
 
+impl<T: fmt::Debug> fmt::Debug for LruSlab<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut m = f.debug_map();
+        for (i, x) in self {
+            m.entry(&i, x);
+        }
+        m.finish()
+    }
+}
+
 #[derive(Clone)]
 struct Slot<T> {
     value: Option<T>,
@@ -389,7 +399,7 @@ impl IterState {
 
 #[cfg(test)]
 mod tests {
-    use alloc::string::String;
+    use alloc::{format, string::String};
 
     use super::*;
 
@@ -428,5 +438,11 @@ mod tests {
         let a_prime = cache.insert('a');
         assert_eq!(a, a_prime);
         assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn debug() {
+        let slab = ['a', 'b'].into_iter().collect::<LruSlab<_>>();
+        assert_eq!(format!("{:?}", slab), "{1: 'b', 0: 'a'}");
     }
 }
