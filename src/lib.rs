@@ -249,11 +249,7 @@ impl<'a, T> IntoIterator for &'a mut LruSlab<T> {
 
 impl<T: fmt::Debug> fmt::Debug for LruSlab<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut m = f.debug_map();
-        for (i, x) in self {
-            m.entry(&i, x);
-        }
-        m.finish()
+        f.debug_map().entries(self).finish()
     }
 }
 
