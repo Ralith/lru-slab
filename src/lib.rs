@@ -395,7 +395,7 @@ impl IterState {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{format, string::String};
+    use alloc::{format, string::String, vec::Vec};
 
     use super::*;
 
@@ -440,5 +440,13 @@ mod tests {
     fn debug() {
         let slab = ['a', 'b'].into_iter().collect::<LruSlab<_>>();
         assert_eq!(format!("{:?}", slab), "{1: 'b', 0: 'a'}");
+    }
+
+    #[test]
+    fn iter_reverse() {
+        let slab = ['a', 'b'].into_iter().collect::<LruSlab<_>>();
+        let mut double_reversed = slab.iter().rev().collect::<Vec<_>>();
+        double_reversed.reverse();
+        assert_eq!(slab.iter().collect::<Vec<_>>(), double_reversed);
     }
 }
