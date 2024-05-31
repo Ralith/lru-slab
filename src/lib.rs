@@ -36,8 +36,7 @@ impl<T> LruSlab<T> {
                         SlotId(n + 1)
                     },
                 })
-                .collect::<Vec<_>>()
-                .into(),
+                .collect(),
             head: SlotId::NONE,
             tail: SlotId::NONE,
             free: if capacity == 0 {
@@ -90,8 +89,7 @@ impl<T> LruSlab<T> {
                             SlotId(n + 1)
                         },
                     }))
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice();
+                    .collect();
                 self.free = SlotId(len + 1);
                 SlotId(len)
             }
