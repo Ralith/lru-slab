@@ -61,6 +61,14 @@ impl<T> LruSlab<T> {
         self.slots.len() as u32
     }
 
+    /// The slot that will be returned by the next call to `insert`, unless `remove` is called first
+    pub fn vacant_key(&self) -> u32 {
+        match self.free {
+            NONE => self.capacity(),
+            _ => self.free,
+        }
+    }
+
     /// Insert a value, returning the slot it was stored in
     ///
     /// The returned slot is marked as the most recently used.
@@ -448,5 +456,15 @@ mod tests {
         let mut double_reversed = slab.iter().rev().collect::<Vec<_>>();
         double_reversed.reverse();
         assert_eq!(slab.iter().collect::<Vec<_>>(), double_reversed);
+    }
+
+    #[test]
+    fn vacant_key() {
+        let mut slab = LruSlab::new();
+        assert_eq!(slab.vacant_key(), 0);
+        slab.insert(());
+        assert_eq!(slab.vacant_key(), 1);
+        slab.remove(0);
+        assert_eq!(slab.vacant_key(), 0);
     }
 }
