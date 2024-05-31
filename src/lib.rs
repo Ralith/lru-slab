@@ -12,11 +12,11 @@ use alloc::boxed::Box;
 pub struct LruSlab<T> {
     slots: Box<[Slot<T>]>,
     /// Most recently used
-    head: SlotId,
+    head: u32,
     /// Least recently used
-    tail: SlotId,
+    tail: u32,
     /// First unused
-    free: SlotId,
+    free: u32,
     /// Number of occupied slots
     len: u32,
 }
@@ -34,21 +34,13 @@ impl<T> LruSlab<T> {
             slots: (0..capacity)
                 .map(|n| Slot {
                     value: None,
-                    prev: SlotId::NONE,
-                    next: if n + 1 == capacity {
-                        SlotId::NONE
-                    } else {
-                        SlotId(n + 1)
-                    },
+                    prev: NONE,
+                    next: if n + 1 == capacity { NONE } else { n + 1 },
                 })
                 .collect(),
-            head: SlotId::NONE,
-            tail: SlotId::NONE,
-            free: if capacity == 0 {
-                SlotId::NONE
-            } else {
-                SlotId(0)
-            },
+            head: NONE,
+            tail: NONE,
+            free: if capacity == 0 { NONE } else { 0 },
             len: 0,
         }
     }
@@ -71,7 +63,7 @@ impl<T> LruSlab<T> {
     /// Insert a value, returning the slot it was stored in
     ///
     /// The returned slot is marked as the most recently used.
-    pub fn insert(&mut self, value: T) -> SlotId {
+    pub fn insert(&mut self, value: T) -> u32 {
         let id = match self.alloc() {
             Some(id) => id,
             None => {
@@ -87,19 +79,15 @@ impl<T> LruSlab<T> {
                     })
                     .chain((len..cap).map(|n| Slot {
                         value: None,
-                        prev: SlotId::NONE,
-                        next: if n + 1 == cap {
-                            SlotId::NONE
-                        } else {
-                            SlotId(n + 1)
-                        },
+                        prev: NONE,
+                        next: if n + 1 == cap { NONE } else { n + 1 },
                     }))
                     .collect();
-                self.free = SlotId(len + 1);
-                SlotId(len)
+                self.free = len + 1;
+                len
             }
         };
-        let idx = id.0 as usize;
+        let idx = id as usize;
 
         debug_assert!(self.slots[idx].value.is_none(), "corrupt free list");
         self.slots[idx].value = Some(value);
@@ -110,9 +98,9 @@ impl<T> LruSlab<T> {
     }
 
     /// Get the least recently used slot, if any
-    pub fn lru(&self) -> Option<SlotId> {
-        if self.tail == SlotId::NONE {
-            debug_assert_eq!(self.head, SlotId::NONE);
+    pub fn lru(&self) -> Option<u32> {
+        if self.tail == NONE {
+            debug_assert_eq!(self.head, NONE);
             None
         } else {
             Some(self.tail)
@@ -120,32 +108,32 @@ impl<T> LruSlab<T> {
     }
 
     /// Remove the element stored in `slot`, returning it
-    pub fn remove(&mut self, slot: SlotId) -> T {
+    pub fn remove(&mut self, slot: u32) -> T {
         self.unlink(slot);
-        self.slots[slot.0 as usize].next = self.free;
-        self.slots[slot.0 as usize].prev = SlotId::NONE;
+        self.slots[slot as usize].next = self.free;
+        self.slots[slot as usize].prev = NONE;
         self.free = slot;
         self.len -= 1;
-        self.slots[slot.0 as usize]
+        self.slots[slot as usize]
             .value
             .take()
             .expect("removing empty slot")
     }
 
     /// Mark `slot` as the most recently used and access it uniquely
-    pub fn get_mut(&mut self, slot: SlotId) -> &mut T {
+    pub fn get_mut(&mut self, slot: u32) -> &mut T {
         self.freshen(slot);
         self.peek_mut(slot)
     }
 
     /// Access `slot` without marking it as most recently used
-    pub fn peek(&self, slot: SlotId) -> &T {
-        self.slots[slot.0 as usize].value.as_ref().unwrap()
+    pub fn peek(&self, slot: u32) -> &T {
+        self.slots[slot as usize].value.as_ref().unwrap()
     }
 
     /// Access `slot` uniquely without marking it as most recently used
-    pub fn peek_mut(&mut self, slot: SlotId) -> &mut T {
-        self.slots[slot.0 as usize].value.as_mut().unwrap()
+    pub fn peek_mut(&mut self, slot: u32) -> &mut T {
+        self.slots[slot as usize].value.as_mut().unwrap()
     }
 
     /// Walk the container from most to least recently used
@@ -159,18 +147,18 @@ impl<T> LruSlab<T> {
     }
 
     /// Remove a slot from the freelist
-    fn alloc(&mut self) -> Option<SlotId> {
-        if self.free == SlotId::NONE {
+    fn alloc(&mut self) -> Option<u32> {
+        if self.free == NONE {
             return None;
         }
         let slot = self.free;
-        self.free = self.slots[slot.0 as usize].next;
+        self.free = self.slots[slot as usize].next;
         Some(slot)
     }
 
     /// Mark `slot` as the most recently used
-    fn freshen(&mut self, slot: SlotId) {
-        if self.slots[slot.0 as usize].prev == SlotId::NONE {
+    fn freshen(&mut self, slot: u32) {
+        if self.slots[slot as usize].prev == NONE {
             // This is already the freshest slot, so we don't need to do anything
             debug_assert_eq!(self.head, slot, "corrupt lru list");
             return;
@@ -181,30 +169,30 @@ impl<T> LruSlab<T> {
     }
 
     /// Add a link to the head of the list
-    fn link_at_head(&mut self, slot: SlotId) {
-        let idx = slot.0 as usize;
-        if self.head == SlotId::NONE {
+    fn link_at_head(&mut self, slot: u32) {
+        let idx = slot as usize;
+        if self.head == NONE {
             // List was empty
-            self.slots[idx].next = SlotId::NONE;
+            self.slots[idx].next = NONE;
             self.tail = slot;
         } else {
             self.slots[idx].next = self.head;
-            self.slots[self.head.0 as usize].prev = slot;
+            self.slots[self.head as usize].prev = slot;
         }
-        self.slots[idx].prev = SlotId::NONE;
+        self.slots[idx].prev = NONE;
         self.head = slot;
     }
 
     /// Remove a link from anywhere in the list
-    fn unlink(&mut self, slot: SlotId) {
-        let idx = slot.0 as usize;
-        if self.slots[idx].prev != SlotId::NONE {
-            self.slots[self.slots[idx].prev.0 as usize].next = self.slots[idx].next;
+    fn unlink(&mut self, slot: u32) {
+        let idx = slot as usize;
+        if self.slots[idx].prev != NONE {
+            self.slots[self.slots[idx].prev as usize].next = self.slots[idx].next;
         } else {
             self.head = self.slots[idx].next;
         }
-        if self.slots[idx].next != SlotId::NONE {
-            self.slots[self.slots[idx].next.0 as usize].prev = self.slots[idx].prev;
+        if self.slots[idx].next != NONE {
+            self.slots[self.slots[idx].next as usize].prev = self.slots[idx].prev;
         } else {
             // This was the tail
             self.tail = self.slots[idx].prev;
@@ -222,24 +210,18 @@ impl<T> Default for LruSlab<T> {
 struct Slot<T> {
     value: Option<T>,
     /// Next slot in the LRU or free list
-    next: SlotId,
+    next: u32,
     /// Previous slot in the LRU list; NONE when free
-    prev: SlotId,
+    prev: u32,
 }
 
-/// Location of an element in an [`LruSlab`]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct SlotId(pub u32);
-
-impl SlotId {
-    const NONE: Self = SlotId(u32::max_value());
-}
+const NONE: u32 = u32::MAX;
 
 /// Iterator over elements of an [`LruSlab`], from most to least recently used
 pub struct Iter<'a, T> {
     slots: &'a [Slot<T>],
-    head: SlotId,
-    tail: SlotId,
+    head: u32,
+    tail: u32,
     len: u32,
 }
 
@@ -249,7 +231,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
         if self.len == 0 {
             return None;
         }
-        let idx = self.head.0 as usize;
+        let idx = self.head as usize;
         let result = self.slots[idx].value.as_ref().expect("corrupt LRU list");
         self.head = self.slots[idx].next;
         self.len -= 1;
@@ -266,7 +248,7 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
         if self.len == 0 {
             return None;
         }
-        let idx = self.tail.0 as usize;
+        let idx = self.tail as usize;
         let result = self.slots[idx].value.as_ref().expect("corrupt LRU list");
         self.tail = self.slots[idx].prev;
         self.len -= 1;
