@@ -226,8 +226,8 @@ pub struct Iter<'a, T> {
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
-    fn next(&mut self) -> Option<&'a T> {
+    type Item = (u32, &'a T);
+    fn next(&mut self) -> Option<(u32, &'a T)> {
         if self.len == 0 {
             return None;
         }
@@ -235,7 +235,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
         let result = self.slots[idx].value.as_ref().expect("corrupt LRU list");
         self.head = self.slots[idx].next;
         self.len -= 1;
-        Some(result)
+        Some((idx as u32, result))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -244,7 +244,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 
 impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
-    fn next_back(&mut self) -> Option<&'a T> {
+    fn next_back(&mut self) -> Option<(u32, &'a T)> {
         if self.len == 0 {
             return None;
         }
@@ -252,7 +252,7 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
         let result = self.slots[idx].value.as_ref().expect("corrupt LRU list");
         self.tail = self.slots[idx].prev;
         self.len -= 1;
-        Some(result)
+        Some((idx as u32, result))
     }
 }
 
@@ -272,15 +272,15 @@ mod tests {
     fn lru_order() {
         let mut cache = LruSlab::new();
         let b = cache.insert('b');
-        assert_eq!(cache.iter().collect::<String>(), "b");
+        assert_eq!(cache.iter().map(|(_, x)| x).collect::<String>(), "b");
         let _a = cache.insert('a');
-        assert_eq!(cache.iter().collect::<String>(), "ab");
+        assert_eq!(cache.iter().map(|(_, x)| x).collect::<String>(), "ab");
         let d = cache.insert('d');
-        assert_eq!(cache.iter().collect::<String>(), "dab");
+        assert_eq!(cache.iter().map(|(_, x)| x).collect::<String>(), "dab");
         let c = cache.insert('c');
-        assert_eq!(cache.iter().collect::<String>(), "cdab");
+        assert_eq!(cache.iter().map(|(_, x)| x).collect::<String>(), "cdab");
         let e = cache.insert('e');
-        assert_eq!(cache.iter().collect::<String>(), "ecdab");
+        assert_eq!(cache.iter().map(|(_, x)| x).collect::<String>(), "ecdab");
 
         cache.get_mut(b);
         cache.get_mut(c);
