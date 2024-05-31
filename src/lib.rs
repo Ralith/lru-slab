@@ -227,6 +227,26 @@ impl<T> FromIterator<T> for LruSlab<T> {
     }
 }
 
+impl<'a, T> IntoIterator for &'a LruSlab<T> {
+    type Item = (u32, &'a T);
+
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut LruSlab<T> {
+    type Item = (u32, &'a mut T);
+
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
 #[derive(Clone)]
 struct Slot<T> {
     value: Option<T>,
