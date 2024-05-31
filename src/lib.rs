@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use core::{marker::PhantomData, ptr::addr_of_mut};
 
 /// A random-access table that maintains an LRU list in constant time
 #[derive(Clone)]
@@ -145,6 +146,16 @@ impl<T> LruSlab<T> {
         }
     }
 
+    /// Walk the container from most to least recently used
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        let state = IterState::new(self);
+        IterMut {
+            slots: self.slots[..].as_mut_ptr().cast(),
+            state,
+            _marker: PhantomData,
+        }
+    }
+
     /// Remove a slot from the freelist
     fn alloc(&mut self) -> Option<u32> {
         if self.free == NONE {
@@ -250,6 +261,56 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
 }
 
 impl<T> ExactSizeIterator for Iter<'_, T> {
+    fn len(&self) -> usize {
+        self.state.len as usize
+    }
+}
+
+/// Iterator over mutable elements of an [`LruSlab`], from most to least recently used
+pub struct IterMut<'a, T> {
+    slots: *mut Slot<T>,
+    state: IterState,
+    _marker: PhantomData<&'a mut [Slot<T>]>,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = (u32, &'a mut T);
+    fn next(&mut self) -> Option<(u32, &'a mut T)> {
+        // Safety: `next` returns unique in-bounds indices, and no live references overlap with any
+        // `next` field
+        unsafe {
+            let idx = self
+                .state
+                .next(|i| *addr_of_mut!((*self.slots.add(i as usize)).next))?;
+            let result = (*addr_of_mut!((*self.slots.add(idx as usize)).value))
+                .as_mut()
+                .expect("corrupt LRU list");
+            Some((idx, result))
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.state.len as usize, Some(self.state.len as usize))
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
+    fn next_back(&mut self) -> Option<(u32, &'a mut T)> {
+        // Safety: `next_back` returns unique in-bounds indices, and no live references overlap with
+        // any `prev` field
+        unsafe {
+            let idx = self
+                .state
+                .next_back(|i| *addr_of_mut!((*self.slots.add(i as usize)).prev))?;
+            let result = (*addr_of_mut!((*self.slots.add(idx as usize)).value))
+                .as_mut()
+                .expect("corrupt LRU list");
+            Some((idx, result))
+        }
+    }
+}
+
+impl<T> ExactSizeIterator for IterMut<'_, T> {
     fn len(&self) -> usize {
         self.state.len as usize
     }
