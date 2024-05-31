@@ -1,3 +1,7 @@
+//! Pre-allocated storage with constant-time LRU tracking
+
+#![warn(missing_docs)]
+
 /// A random-access table that maintains an LRU list in constant time
 #[derive(Clone)]
 pub struct LruSlab<T> {
@@ -13,10 +17,12 @@ pub struct LruSlab<T> {
 }
 
 impl<T> LruSlab<T> {
+    /// Create an empty [`LruSlab`]
     pub fn new() -> Self {
         Self::with_capacity(0)
     }
 
+    /// Create an [`LruSlab`] that can store at least `capacity` elements without reallocating
     pub fn with_capacity(capacity: u32) -> Self {
         assert!(capacity != u32::max_value(), "capacity too large");
         Self {
@@ -43,19 +49,22 @@ impl<T> LruSlab<T> {
         }
     }
 
+    /// Whether no elements are stored
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Number of elements stored
     pub fn len(&self) -> u32 {
         self.len
     }
 
+    /// Number of elements that can be stored without reallocating
     pub fn capacity(&self) -> u32 {
         self.slots.len() as u32
     }
 
-    /// Inserts a value, returning the slot it was stored in
+    /// Insert a value, returning the slot it was stored in
     ///
     /// The returned slot is marked as the most recently used.
     pub fn insert(&mut self, value: T) -> SlotId {
@@ -107,6 +116,7 @@ impl<T> LruSlab<T> {
         }
     }
 
+    /// Remove the element stored in `slot`, returning it
     pub fn remove(&mut self, slot: SlotId) -> T {
         self.unlink(slot);
         self.slots[slot.0 as usize].next = self.free;
@@ -135,7 +145,7 @@ impl<T> LruSlab<T> {
         self.slots[slot.0 as usize].value.as_mut().unwrap()
     }
 
-    /// Walks the container from most to least recently used
+    /// Walk the container from most to least recently used
     pub fn iter(&self) -> Iter<'_, T> {
         Iter {
             slots: &self.slots[..],
@@ -214,6 +224,7 @@ struct Slot<T> {
     prev: SlotId,
 }
 
+/// Location of an element in an [`LruSlab`]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct SlotId(pub u32);
 
@@ -221,6 +232,7 @@ impl SlotId {
     const NONE: Self = SlotId(u32::max_value());
 }
 
+/// Iterator over elements of an [`LruSlab`], from most to least recently used
 pub struct Iter<'a, T> {
     slots: &'a [Slot<T>],
     head: SlotId,
