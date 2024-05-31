@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use core::{marker::PhantomData, ptr::addr_of_mut};
+use core::{iter::FusedIterator, marker::PhantomData, ptr::addr_of_mut};
 
 /// A random-access table that maintains an LRU list in constant time
 #[derive(Clone)]
@@ -266,6 +266,8 @@ impl<T> ExactSizeIterator for Iter<'_, T> {
     }
 }
 
+impl<T> FusedIterator for Iter<'_, T> {}
+
 /// Iterator over mutable elements of an [`LruSlab`], from most to least recently used
 pub struct IterMut<'a, T> {
     slots: *mut Slot<T>,
@@ -315,6 +317,8 @@ impl<T> ExactSizeIterator for IterMut<'_, T> {
         self.state.len as usize
     }
 }
+
+impl<T> FusedIterator for IterMut<'_, T> {}
 
 struct IterState {
     head: u32,
