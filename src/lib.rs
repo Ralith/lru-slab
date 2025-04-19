@@ -77,7 +77,11 @@ impl<T> LruSlab<T> {
             Some(id) => id,
             None => {
                 let len = self.capacity();
-                let cap = 2 * len.max(2);
+                // Ensure `NONE` never becomes a real slot index
+                let cap = 2u32.saturating_mul(len.max(2)).min(u32::MAX - 1);
+                if cap == len {
+                    panic!("cannot store more than 2^32-2 elements");
+                }
                 self.slots = self
                     .slots
                     .iter_mut()
